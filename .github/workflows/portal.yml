@@ -1,0 +1,55 @@
+# Portal web del cliente (feature 004): puerta de calidad en cada PR y despliegue a Azure Static
+# Web Apps al unir a main (T-02). El despliegue necesita el secreto AZURE_STATIC_WEB_APPS_API_TOKEN
+# y la variable VITE_URL_API configurados en el repositorio.
+name: Portal del cliente
+
+on:
+  push:
+    branches: ['main']
+  pull_request:
+    branches: ['main']
+  workflow_dispatch:
+
+jobs:
+  calidad:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+          cache: 'npm'
+      - run: npm ci
+      - name: Tipos, lint, formato y pruebas
+        run: |
+          npm run typecheck
+          npm run lint
+          npm run verificar-formato
+          npm run test:cobertura
+      - name: Pruebas de punta a punta (Playwright)
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+
+  desplegar:
+    needs: calidad
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+          cache: 'npm'
+      - run: npm ci
+      - name: Construir
+        run: npm run build
+        env:
+          VITE_URL_API: ${{ vars.VITE_URL_API }}
+      - name: Publicar en Azure Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          action: upload
+          app_location: dist
+          skip_app_build: true
