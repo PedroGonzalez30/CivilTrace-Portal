@@ -40,7 +40,22 @@ const ACTIVIDAD = {
   estado: 'TERMINADA',
   fechaEntrega: '2026-11-05',
   fechaTerminada: '2026-11-05',
-  fotos: [{ id: 'f1', comentario: 'Piso terminado', fechaRegistro: '2026-11-04T18:00:00.000Z' }],
+  fotos: [
+    {
+      id: 'f1',
+      comentario: 'Piso terminado',
+      fechaRegistro: '2026-11-04T18:00:00.000Z',
+      ubicacion: { latitud: 32.6245, longitud: -115.4523, precisionMetros: 10 },
+      referenciaUbicacion: null,
+    },
+    {
+      id: 'f2',
+      comentario: 'Puerta del baño',
+      fechaRegistro: '2026-11-05T18:00:00.000Z',
+      ubicacion: null,
+      referenciaUbicacion: 'Planta alta',
+    },
+  ],
 };
 
 const ENTREGA = {
@@ -78,6 +93,7 @@ function rutasBase(detalle: object = DETALLE) {
     'GET /avances': () => ({ cuerpo: [ACTIVIDAD] }),
     'GET /entregas/e1': () => ({ cuerpo: detalle }),
     'GET /fotos/f1': () => ({ binario: new Blob(['foto'], { type: 'image/jpeg' }) }),
+    'GET /fotos/f2': () => ({ binario: new Blob(['foto'], { type: 'image/jpeg' }) }),
     'GET /entregas/e1/firma': () => ({ binario: new Blob(['firma'], { type: 'image/png' }) }),
   };
 }
@@ -123,6 +139,24 @@ describe('Portal del cliente', () => {
       expect.stringMatching(/^blob:/),
     );
     expect(peticiones.every((peticion) => peticion.token === 'tkn')).toBe(true);
+  });
+
+  it('CP16-PORTAL-E7-PORTAL cada foto muestra su ubicación y el enlace al mapa (feature 007)', async () => {
+    simularApi(rutasBase());
+    const usuario = userEvent.setup();
+
+    abrir('/o/tkn');
+
+    await usuario.click(await screen.findByRole('tab', { name: 'Avances' }));
+    expect(await screen.findByText('Ubicación: 32.624500, -115.452300')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Ver en el mapa' })).toHaveAttribute(
+      'href',
+      'https://www.google.com/maps/search/?api=1&query=32.6245,-115.4523',
+    );
+    expect(
+      screen.getByText('Ubicación: Sin ubicación GPS · Referencia: Planta alta'),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'Ver en el mapa' })).toHaveLength(1);
   });
 
   it('CP16-PORTAL-E6-PORTAL sin avances ni entregas lo indica', async () => {
